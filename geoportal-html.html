@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geoportal CNEL - Sistema de Subtransmisión</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    
+    <!-- CSS Personalizado -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Mapa */
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+
+        /* Panel lateral */
+        .sidebar {
+            width: 400px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .section {
+            padding: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        .table-container {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .item {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .item:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+        }
+
+        .item.selected {
+            background: #eff6ff;
+            border-color: #3b82f6;
+        }
+
+        .item-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #1f2937;
+            margin-bottom: 6px;
+        }
+
+        .item-details {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .item-coords {
+            color: #3b82f6;
+            margin-top: 4px;
+        }
+
+        .distance-section {
+            background: #f0f9ff;
+        }
+
+        .distance-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+
+        .distance-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .distance-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .distance-name {
+            color: #374151;
+        }
+
+        .distance-value {
+            color: #2563eb;
+            font-weight: 600;
+        }
+
+        .summary {
+            background: #f9fafb;
+            padding: 15px;
+        }
+
+        .summary-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 12px;
+            color: #4b5563;
+        }
+
+        .summary-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        /* Scrollbar personalizado */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Popup personalizado */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 5px;
+        }
+
+        .popup-title {
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+
+        .popup-detail {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Panel lateral -->
+        <div class="sidebar">
+            <!-- Header -->
+            <div class="header">
+                <h1>CNEL EP - Unidad de Negocio El Oro</h1>
+                <p>Sistema de Subtransmisión 69 kV</p>
+            </div>
+
+            <!-- Subestaciones -->
+            <div class="section">
+                <div class="section-title">
+                    <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+                    </svg>
+                    Subestaciones <span id="sub-count">(0)</span>
+                </div>
+                <div class="table-container" id="subestaciones-list"></div>
+            </div>
+
+            <!-- Líneas -->
+            <div class="section">
+                <div class="section-title">
+                    <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/>
+                    </svg>
+                    Líneas de Subtransmisión <span id="lineas-count">(0)</span>
+                </div>
+                <div class="table-container" id="lineas-list"></div>
+            </div>
+
+            <!-- Distancias -->
+            <div class="section distance-section" id="distance-section" style="display: none;">
+                <div class="distance-title">Distancias desde <span id="selected-sub-name"></span></div>
+                <div class="distance-list" id="distance-list"></div>
+            </div>
+
+            <!-- Resumen -->
+            <div class="summary">
+                <div class="summary-title">Resumen del Sistema</div>
+                <div class="summary-row">
+                    <span>Total Subestaciones:</span>
+                    <span class="summary-value" id="total-subs">0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Total Líneas:</span>
+                    <span class="summary-value" id="total-lines">0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Longitud Total:</span>
+                    <span class="summary-value" id="total-length">0 km</span>
+                </div>
+                <div class="summary-row">
+                    <span>Alimentadores Totales:</span>
+                    <span class="summary-value" id="total-feeders">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mapa -->
+        <div id="map"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <!-- JavaScript Personalizado -->
+    <script>
+        // Datos de subestaciones
+        var subestaciones = [
+            { id: 1, cod_sub: "07PN01", nom_sub: "S/E La Peana", canton: "MACHALA", cant_alim: 4, latitud: -3.292482, longitud: -79.867848 },
+            { id: 2, cod_sub: "07BA02", nom_sub: "S/E Barbones", canton: "EL GUABO", cant_alim: 2, latitud: -3.193392, longitud: -79.850975 },
+            { id: 3, cod_sub: "07CA03", nom_sub: "S/E El Cambio", canton: "MACHALA", cant_alim: 4, latitud: -3.296441, longitud: -79.903199 },
+            { id: 4, cod_sub: "07MA04", nom_sub: "S/E Machala", canton: "MACHALA", cant_alim: 6, latitud: -3.270012, longitud: -79.932774 },
+            { id: 5, cod_sub: "07AV05", nom_sub: "S/E La Avanzada", canton: "SANTA ROSA", cant_alim: 2, latitud: -3.521069, longitud: -79.970859 },
+            { id: 6, cod_sub: "07PI06", nom_sub: "S/E Los Pinos", canton: "MACHALA", cant_alim: 7, latitud: -3.254104, longitud: -79.979698 },
+            { id: 7, cod_sub: "07SR07", nom_sub: "S/E Santa Rosa", canton: "SANTA ROSA", cant_alim: 6, latitud: -3.44823, longitud: -79.967268 },
+            { id: 8, cod_sub: "07MC08", nom_sub: "S/E Machala Centro", canton: "MACHALA", cant_alim: 4, latitud: -3.26609, longitud: -79.950143 },
+            { id: 9, cod_sub: "07AR09", nom_sub: "S/E Arenillas", canton: "ARENILLAS", cant_alim: 6, latitud: -3.549443, longitud: -80.069643 },
+            { id: 10, cod_sub: "07PO10", nom_sub: "S/E Portovelo", canton: "PORTOVELO", cant_alim: 8, latitud: -3.709628, longitud: -79.632949 },
+            { id: 11, cod_sub: "07HU11", nom_sub: "S/E Huaquillas", canton: "HUAQUILLAS", cant_alim: 6, latitud: -3.490226, longitud: -80.20845 },
+            { id: 12, cod_sub: "07PA12", nom_sub: "S/E Pagua", canton: "EL GUABO", cant_alim: 7, latitud: -3.086595, longitud: -79.760585 },
+            { id: 13, cod_sub: "07BL13", nom_sub: "S/E Balao", canton: "BALAO", cant_alim: 3, latitud: -2.905934, longitud: -79.706978 },
+            { id: 14, cod_sub: "07SA14", nom_sub: "S/E Saracay", canton: "PINAS", cant_alim: 3, latitud: -3.646685, longitud: -79.861238 },
+            { id: 15, cod_sub: "07IB15", nom_sub: "S/E La Iberia", canton: "EL GUABO", cant_alim: 4, latitud: -3.256273, longitud: -79.865301 },
+            { id: 16, cod_sub: "07PT16", nom_sub: "S/E Porotillo", canton: "PASAJE", cant_alim: 2, latitud: -3.327336, longitud: -79.620549 },
+            { id: 17, cod_sub: "07PR17", nom_sub: "S/E La Primavera", canton: "MACHALA", cant_alim: 5, latitud: -3.241271, longitud: -79.949575 },
+            { id: 18, cod_sub: "07BO18", nom_sub: "S/E El Bosque", canton: "MACHALA", cant_alim: 4, latitud: -3.283521, longitud: -79.940432 }
+        ];
+
+        // Datos de líneas
+        var lineas = [
+            { id: 1, nombre: "LA AVANZADA - SARACAY", longitud: 20095.38, voltaje: 69000, canton: "PINAS" },
+            { id: 2, nombre: "ARENILLAS - HUAQUILLAS", longitud: 18191.33, voltaje: 69000, canton: "ARENILLAS" },
+            { id: 3, nombre: "LA IBERIA - BARBONES", longitud: 7299.64, voltaje: 69000, canton: "EL GUABO" },
+            { id: 4, nombre: "BARBONES - PAGUA", longitud: 26885.89, voltaje: 69000, canton: "EL GUABO" },
+            { id: 5, nombre: "MACHALA - LOS PINOS", longitud: 21.49, voltaje: 69000, canton: "MACHALA" },
+            { id: 6, nombre: "LA PEANA - POROTILLO", longitud: 30728.29, voltaje: 69000, canton: "PASAJE" },
+            { id: 7, nombre: "SARACAY - PORTOVELO", longitud: 27788.83, voltaje: 69000, canton: "PORTOVELO" },
+            { id: 8, nombre: "LA PEANA - LA AVANZADA", longitud: 31118.40, voltaje: 69000, canton: "SANTA ROSA" },
+            { id: 9, nombre: "MACHALA - LOS PINOS", longitud: 6204.41, voltaje: 69000, canton: "MACHALA" },
+            { id: 10, nombre: "LA AVANZADA - ARENILLAS", longitud: 12214.68, voltaje: 69000, canton: "SANTA ROSA" },
+            { id: 11, nombre: "PRIMAVERA - LOS PINOS", longitud: 5833.07, voltaje: 69000, canton: "MACHALA" },
+            { id: 12, nombre: "LA PEANA - SANTA ROSA", longitud: 14183.87, voltaje: 69000, canton: "SANTA ROSA" }
+        ];
+
+        // Inicializar mapa
+        var map = L.map('map').setView([-3.35, -79.90], 10);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Variable para subestación seleccionada
+        var selectedSubstation = null;
+        var markers = [];
+
+        // Función para calcular distancia
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            var R = 6371;
+            var dLat = (lat2 - lat1) * Math.PI / 180;
+            var dLon = (lon2 - lon1) * Math.PI / 180;
+            var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return (R * c).toFixed(2);
+        }
+
+        // Agregar marcadores al mapa
+        subestaciones.forEach(function(sub) {
+            var marker = L.marker([sub.latitud, sub.longitud])
+                .addTo(map)
+                .bindPopup('<div class="popup-title">' + sub.nom_sub + '</div>' +
+                          '<div class="popup-detail">' +
+                          'Código: ' + sub.cod_sub + '<br>' +
+                          'Cantón: ' + sub.canton + '<br>' +
+                          'Alimentadores: ' + sub.cant_alim + '</div>');
+            
+            marker.substationId = sub.id;
+            markers.push(marker);
+            
+            marker.on('click', function() {
+                selectSubstation(sub.id);
+            });
+        });
+
+        // Cargar área de servicio
+        fetch('Area_Servicio_EOR.geojson')
+            .then(response => response.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    style: {
+                        color: 'blue',
+                        weight: 3,
+                        opacity: 0.8,
+                        fillOpacity: 0
+                    }
+                }).addTo(map);
+            })
+            .catch(error => console.error('Error loading GeoJSON:', error));
+
+        // Cargar líneas de subtransmisión
+        fetch('LineaSubtransmision.geojson')
+            .then(response => response.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    style: {
+                        color: 'red',
+                        weight: 2,
+                        opacity: 0.7
+                    }
+                }).addTo(map);
+            })
+            .catch(error => console.error('Error loading GeoJSON:', error));
+        // Cargar estructuras 69KV
+        fetch('Estructura_69KV.geojson')
+            .then(response => response.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    pointToLayer: function(feature, latlng) {
+                        return L.circleMarker(latlng, {
+                            color: 'grey',
+                            fillColor: 'red',
+                            fillOpacity: 0.8,
+                            radius: 3
+                        });
+                    }
+                }).addTo(map);
+            })
+            .catch(error => console.error('Error loading GeoJSON:', error));
+        // Renderizar lista de subestaciones
+        function renderSubstations() {
+            var container = document.getElementById('subestaciones-list');
+            container.innerHTML = '';
+            
+            subestaciones.forEach(function(sub) {
+                var div = document.createElement('div');
+                div.className = 'item';
+                div.id = 'sub-' + sub.id;
+                div.innerHTML = '<div class="item-title">' + sub.nom_sub + '</div>' +
+                               '<div class="item-details">' +
+                               'Código: ' + sub.cod_sub + '<br>' +
+                               'Cantón: ' + sub.canton + '<br>' +
+                               'Alimentadores: ' + sub.cant_alim + '<br>' +
+                               '<div class="item-coords">' + 
+                               sub.latitud.toFixed(4) + ', ' + sub.longitud.toFixed(4) +
+                               '</div></div>';
+                
+                div.onclick = function() {
+                    selectSubstation(sub.id);
+                };
+                
+                container.appendChild(div);
+            });
+            
+            document.getElementById('sub-count').textContent = '(' + subestaciones.length + ')';
+        }
+
+        // Renderizar lista de líneas
+        function renderLines() {
+            var container = document.getElementById('lineas-list');
+            container.innerHTML = '';
+            
+            lineas.forEach(function(linea) {
+                var div = document.createElement('div');
+                div.className = 'item';
+                div.innerHTML = '<div class="item-title">' + linea.nombre + '</div>' +
+                               '<div class="item-details">' +
+                               'Longitud: ' + (linea.longitud / 1000).toFixed(2) + ' km<br>' +
+                               'Voltaje: ' + (linea.voltaje / 1000) + ' kV<br>' +
+                               'Cantón: ' + linea.canton + '</div>';
+                
+                container.appendChild(div);
+            });
+            
+            document.getElementById('lineas-count').textContent = '(' + lineas.length + ')';
+        }
+
+        // Seleccionar subestación
+        function selectSubstation(id) {
+            // Remover selección anterior
+            var prevSelected = document.querySelector('.item.selected');
+            if (prevSelected) {
+                prevSelected.classList.remove('selected');
+            }
+            
+            // Seleccionar nueva
+            var newSelected = document.getElementById('sub-' + id);
+            if (newSelected) {
+                newSelected.classList.add('selected');
+            }
+            
+            selectedSubstation = subestaciones.find(function(s) { return s.id === id; });
+            
+            if (selectedSubstation) {
+                // Centrar mapa
+                map.setView([selectedSubstation.latitud, selectedSubstation.longitud], 17);
+                
+                // Mostrar distancias
+                showDistances();
+            }
+        }
+
+        // Mostrar distancias
+        function showDistances() {
+            var section = document.getElementById('distance-section');
+            var nameSpan = document.getElementById('selected-sub-name');
+            var list = document.getElementById('distance-list');
+            
+            section.style.display = 'block';
+            nameSpan.textContent = selectedSubstation.nom_sub;
+            list.innerHTML = '';
+            
+            subestaciones.forEach(function(sub) {
+                if (sub.id !== selectedSubstation.id) {
+                    var distance = calculateDistance(
+                        selectedSubstation.latitud,
+                        selectedSubstation.longitud,
+                        sub.latitud,
+                        sub.longitud
+                    );
+                    
+                    var div = document.createElement('div');
+                    div.className = 'distance-item';
+                    div.innerHTML = '<span class="distance-name">' + sub.nom_sub + '</span>' +
+                                   '<span class="distance-value">' + distance + ' km</span>';
+                    
+                    list.appendChild(div);
+                }
+            });
+        }
+
+        // Actualizar resumen
+        function updateSummary() {
+            var totalLength = lineas.reduce(function(sum, l) { return sum + l.longitud; }, 0);
+            var totalFeeders = subestaciones.reduce(function(sum, s) { return sum + s.cant_alim; }, 0);
+            
+            document.getElementById('total-subs').textContent = subestaciones.length;
+            document.getElementById('total-lines').textContent = lineas.length;
+            document.getElementById('total-length').textContent = (totalLength / 1000).toFixed(2) + ' km';
+            document.getElementById('total-feeders').textContent = totalFeeders;
+        }
+
+        // Inicializar
+        renderSubstations();
+        renderLines();
+        updateSummary();
+    </script>
+</body>
+</html>
