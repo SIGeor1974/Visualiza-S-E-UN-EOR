@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geoportal Subestaciones Eléctricas</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 400px;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 15px;
+            background: white;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .search-box {
+            padding: 15px;
+            background: white;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+            background: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #2c3e50;
+            color: white;
+            z-index: 10;
+        }
+
+        th {
+            padding: 12px 10px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #e3f2fd;
+        }
+
+        tbody tr.selected {
+            background: #bbdefb;
+        }
+
+        td {
+            padding: 12px 10px;
+            font-size: 13px;
+        }
+
+        .cod-sub {
+            color: #3498db;
+            font-weight: 600;
+        }
+
+        .canton-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .alim-count {
+            background: #fff3e0;
+            color: #e65100;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        .leaflet-popup-content {
+            margin: 12px;
+            min-width: 250px;
+        }
+
+        .popup-header {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .popup-row {
+            display: flex;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+
+        .popup-label {
+            font-weight: 600;
+            color: #555;
+            min-width: 100px;
+        }
+
+        .popup-value {
+            color: #333;
+        }
+
+        .zoom-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 8px;
+            width: 100%;
+        }
+
+        .zoom-btn:hover {
+            background: #2980b9;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div class="header">
+            <h1>⚡ Subestaciones UN EOR</h1>
+            <p>Provincia de El Oro, Ecuador</p>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="number" id="total-subs">18</div>
+                <div class="label">Subestaciones</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="total-alim">85</div>
+                <div class="label">Alimentadores</div>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="🔍 Buscar por nombre o código...">
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Subestación</th>
+                        <th>Cantón</th>
+                        <th>Alim.</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Se llenará con JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // GeoJSON convertido desde el JSON original
+        const geojsonSubestaciones = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 1,
+                        "cod_sub": "07PN01",
+                        "num_sub": "1",
+                        "nom_sub": "S/E La Peana",
+                        "direccion": "Salida de la Union-Via La Union-La Peana",
+                        "canton": "MACHALA",
+                        "cant_alim": 4,
+                        "coord_x": 625781.77,
+                        "coord_y": 9636006.4
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.867848, -3.292482]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 2,
+                        "cod_sub": "07BA02",
+                        "num_sub": "2",
+                        "nom_sub": "S/E Barbones",
+                        "direccion": "Entrada a Barbones",
+                        "canton": "EL GUABO",
+                        "cant_alim": 2,
+                        "coord_x": 627669.11,
+                        "coord_y": 9646959.24
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.850975, -3.193392]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 3,
+                        "cod_sub": "07CA03",
+                        "num_sub": "3",
+                        "nom_sub": "S/E El Cambio",
+                        "direccion": "Y del Cambio",
+                        "canton": "MACHALA",
+                        "cant_alim": 4,
+                        "coord_x": 621853.3,
+                        "coord_y": 9635573.08
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.903199, -3.296441]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 4,
+                        "cod_sub": "07MA04",
+                        "num_sub": "4",
+                        "nom_sub": "S/E Machala",
+                        "direccion": "Barrio El Condado - Av. Ferroviaria y Castro Benitez",
+                        "canton": "MACHALA",
+                        "cant_alim": 5,
+                        "coord_x": 618570.36,
+                        "coord_y": 9638498.49
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.932774, -3.270012]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 5,
+                        "cod_sub": "07AV05",
+                        "num_sub": "5",
+                        "nom_sub": "S/E La Avanzada",
+                        "direccion": "Sitio La Florida -Via Bellavista-La Avanzada",
+                        "canton": "SANTA ROSA",
+                        "cant_alim": 2,
+                        "coord_x": 614309.02,
+                        "coord_y": 9610748.07
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.970859, -3.521069]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 6,
+                        "cod_sub": "07PI06",
+                        "num_sub": "6",
+                        "nom_sub": "S/E Los Pinos",
+                        "direccion": "Barrio Los Pinos - Av. Circ Sur y Av. 5ta. Sur",
+                        "canton": "MACHALA",
+                        "cant_alim": 7,
+                        "coord_x": 613358.2,
+                        "coord_y": 9640262.51
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.979698, -3.254104]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 7,
+                        "cod_sub": "07SR07",
+                        "num_sub": "7",
+                        "nom_sub": "S/E Santa Rosa",
+                        "direccion": "Calle 5ta y Los Rios (detras del estadio)",
+                        "canton": "SANTA ROSA",
+                        "cant_alim": 6,
+                        "coord_x": 614716.71,
+                        "coord_y": 9618800.21
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.967268, -3.44823]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 8,
+                        "cod_sub": "07MC08",
+                        "num_sub": "8",
+                        "nom_sub": "S/E Machala Centro",
+                        "direccion": "Av. 25 de Junio y Loja",
+                        "canton": "MACHALA",
+                        "cant_alim": 4,
+                        "coord_x": 616640.82,
+                        "coord_y": 9638934.16
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.950143, -3.26609]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 9,
+                        "cod_sub": "07AR09",
+                        "num_sub": "9",
+                        "nom_sub": "S/E Arenillas",
+                        "direccion": "Jaime Roldos y Callejon 8 (10 de Agosto)",
+                        "canton": "ARENILLAS",
+                        "cant_alim": 6,
+                        "coord_x": 603332.76,
+                        "coord_y": 9607622.97
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-80.069643, -3.549443]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 10,
+                        "cod_sub": "07PO10",
+                        "num_sub": "10",
+                        "nom_sub": "S/E Portovelo",
+                        "direccion": "Sitio El Pache -Via a Pinas - Portovelo",
+                        "canton": "PORTOVELO",
+                        "cant_alim": 8,
+                        "coord_x": 651816.31,
+                        "coord_y": 9589851.7
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.632949, -3.709628]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 11,
+                        "cod_sub": "07HU11",
+                        "num_sub": "11",
+                        "nom_sub": "S/E Huaquillas",
+                        "direccion": "Calle Iwias entre Abdon Calderon y Ecuador",
+                        "canton": "HUAQUILLAS",
+                        "cant_alim": 6,
+                        "coord_x": 587920.25,
+                        "coord_y": 9614183.45
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-80.20845, -3.490226]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 12,
+                        "cod_sub": "07PA12",
+                        "num_sub": "12",
+                        "nom_sub": "S/E Pagua",
+                        "direccion": "Via Panamericana - Entrada a Pagua",
+                        "canton": "EL GUABO",
+                        "cant_alim": 7,
+                        "coord_x": 637727.84,
+                        "coord_y": 9658755.02
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.760585, -3.086595]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 13,
+                        "cod_sub": "07BL13",
+                        "num_sub": "13",
+                        "nom_sub": "S/E Balao",
+                        "direccion": "Sitio San Carlos - Entrada a Balao",
+                        "canton": "BALAO",
+                        "cant_alim": 3,
+                        "coord_x": 643709.44,
+                        "coord_y": 9678722.0
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.706978, -2.905934]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 14,
+                        "cod_sub": "07SA14",
+                        "num_sub": "14",
+                        "nom_sub": "S/E Saracay",
+                        "direccion": "Saracay - Calle E y Calle 9 - Diagonal al INNFA",
+                        "canton": "PINAS",
+                        "cant_alim": 3,
+                        "coord_x": 626469.12,
+                        "coord_y": 9596846.31
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.861238, -3.646685]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 31,
+                        "cod_sub": "07IB15",
+                        "num_sub": "15",
+                        "nom_sub": "S/E La Iberia",
+                        "direccion": "La Iberia - a 300m via la Iberia - El Guabo",
+                        "canton": "EL GUABO",
+                        "cant_alim": 4,
+                        "coord_x": 626069.39,
+                        "coord_y": 9640009.23
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.865301, -3.256273]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 32,
+                        "cod_sub": "07PT16",
+                        "num_sub": "16",
+                        "nom_sub": "S/E Porotillo",
+                        "direccion": "Via Quera - Chilla a 200m del Monumento",
+                        "canton": "PASAJE",
+                        "cant_alim": 2,
+                        "coord_x": 653256.17,
+                        "coord_y": 9632118.21
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.620549, -3.327336]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 34,
+                        "cod_sub": "07PR17",
+                        "num_sub": "17",
+                        "nom_sub": "S/E La Primavera",
+                        "direccion": "B. Federico Paez - calle de las Americas y calle J Q",
+                        "canton": "MACHALA",
+                        "cant_alim": 5,
+                        "coord_x": 616706.82,
+                        "coord_y": 9641677.89
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.949575, -3.241271]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "id": 35,
+                        "cod_sub": "07BO18",
+                        "num_sub": "18",
+                        "nom_sub": "S/E El Bosque",
+                        "direccion": "Urb. Francisco Abad",
+                        "canton": "MACHALA",
+                        "cant_alim": 4,
+                        "coord_x": 617717.8,
+                        "coord_y": 9637005.92
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-79.940432, -3.283521]
+                    }
+                }
+            ]
+        };
+
+        // Inicializar mapa
+        const map = L.map('map').setView([-3.4, -79.9], 9);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Variable para almacenar las capas
+        let capasSubestaciones = {};
+        let filaSeleccionada = null;
+        // Control de capas y colecciones para overlays
+        let overlays = {};
+        let layerControl = null;
+
+        // Cargar GeoJSON en el mapa
+        const capaGeoJSON = L.geoJSON(geojsonSubestaciones, {
+            pointToLayer: function(feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 8,
+                    fillColor: "#3498db",
+                    color: "#fff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+            },
+            onEachFeature: function(feature, layer) {
+                const props = feature.properties;
+                
+                // Guardar referencia de la capa
+                capasSubestaciones[props.id] = layer;
+                
+                // Crear popup
+                const popupContent = `
+                    <div class="popup-header">${props.nom_sub}</div>
+                    <div class="popup-row">
+                        <span class="popup-label">Código:</span>
+                        <span class="popup-value">${props.cod_sub}</span>
+                    </div>
+                    <div class="popup-row">
+                        <span class="popup-label">Cantón:</span>
+                        <span class="popup-value">${props.canton}</span>
+                    </div>
+                    <div class="popup-row">
+                        <span class="popup-label">Dirección:</span>
+                        <span class="popup-value">${props.direccion}</span>
+                    </div>
+                    <div class="popup-row">
+                        <span class="popup-label">Alimentadores:</span>
+                        <span class="popup-value">${props.cant_alim}</span>
+                    </div>
+                    <div class="popup-row">
+                        <span class="popup-label">Coordenadas:</span>
+                        <span class="popup-value">
+                            ${feature.geometry.coordinates[1].toFixed(6)}, 
+                            ${feature.geometry.coordinates[0].toFixed(6)}
+                        </span>
+                    </div>
+                `;
+                
+                layer.bindPopup(popupContent);
+                
+                // Evento click en el marcador
+                layer.on('click', function() {
+                    resaltarFila(props.id);
+                });
+            }
+        }).addTo(map);
+
+        // Registrar capa de subestaciones en overlays y crear control de capas
+        overlays['Subestaciones'] = capaGeoJSON;
+        layerControl = L.control.layers(null, overlays, { collapsed: false }).addTo(map);
+
+        // Llenar la tabla
+        function llenarTabla(features = geojsonSubestaciones.features) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            features.forEach(feature => {
+                const props = feature.properties;
+                const row = document.createElement('tr');
+                row.dataset.id = props.id;
+                
+                row.innerHTML = `
+                    <td><span class="cod-sub">${props.cod_sub}</span></td>
+                    <td>${props.nom_sub}</td>
+                    <td><span class="canton-badge">${props.canton}</span></td>
+                    <td><span class="alim-count">${props.cant_alim}</span></td>
+                `;
+                
+                row.addEventListener('click', function() {
+                    const layer = capasSubestaciones[props.id];
+                    if (layer) {
+                        map.setView(layer.getLatLng(), 14);
+                        layer.openPopup();
+                        resaltarFila(props.id);
+                    }
+                });
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // Función para resaltar fila
+        function resaltarFila(id) {
+            // Remover selección anterior
+            if (filaSeleccionada) {
+                filaSeleccionada.classList.remove('selected');
+            }
+            
+            // Seleccionar nueva fila
+            const fila = document.querySelector(`tr[data-id="${id}"]`);
+            if (fila) {
+                fila.classList.add('selected');
+                fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                filaSeleccionada = fila;
+            }
+        }
+
+        // Buscador
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const termino = e.target.value.toLowerCase();
+            
+            const filtrado = geojsonSubestaciones.features.filter(feature => {
+                const props = feature.properties;
+                return props.nom_sub.toLowerCase().includes(termino) ||
+                       props.cod_sub.toLowerCase().includes(termino) ||
+                       props.canton.toLowerCase().includes(termino);
+            });
+            
+            llenarTabla(filtrado);
+        });
+
+        // Inicializar tabla
+        llenarTabla();
+
+        // Ajustar mapa a los límites iniciales (subestaciones)
+        map.fitBounds(capaGeoJSON.getBounds());
+
+        // Cargar y añadir Area_Servicio_EOR.geojson como capa adicional (polígonos)
+        fetch('Area_Servicio_EOR.geojson')
+            .then(response => response.json())
+            .then(data => {
+                const areaLayer = L.geoJSON(data, {
+                    style: function(feature) {
+                        return {
+                            color: '#217dbb',
+                            weight: 2,
+                            opacity: 0.9,
+                            fillColor: '#3498db',
+                            fillOpacity: 0.1
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const props = feature.properties || {};
+                        const title = props.name || props.NOMBRE || props.Nombre || 'Área de servicio';
+                        const popupContent = `<div class="popup-header">${title}</div>`;
+                        layer.bindPopup(popupContent);
+                    }
+                }).addTo(map);
+
+                // Añadir al control de capas
+                overlays['Área Servicio EOR'] = areaLayer;
+                if (layerControl) {
+                    layerControl.addOverlay(areaLayer, 'Área Servicio EOR');
+                }
+
+                // Ajustar bounds combinando subestaciones y área (si aplica)
+                try {
+                    const boundsSub = capaGeoJSON.getBounds();
+                    const boundsArea = areaLayer.getBounds();
+                    let combined = boundsSub;
+                    if (boundsArea && boundsArea.isValid && boundsArea.isValid()) {
+                        combined = combined.extend(boundsArea);
+                    }
+                    map.fitBounds(combined);
+                } catch (e) {
+                    console.warn('No se pudo ajustar bounds combinados:', e);
+                }
+            })
+            .catch(err => console.error('Error cargando Area_Servicio_EOR.geojson:', err));
+
+        // Cargar y añadir LineaSubtransmision.geojson (líneas) en rojo con guiones, oculta por defecto
+        fetch('LineaSubtransmision.geojson')
+            .then(resp => resp.json())
+            .then(data => {
+                const lineLayer = L.geoJSON(data, {
+                    style: function(feature) {
+                        return {
+                            color: '#ff0000',
+                            weight: 3,
+                            opacity: 0.9,
+                            dashArray: '10, 5'
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const props = feature.properties || {};
+                        const name = props.name || props.NOMBRE || props.Nombre || 'TRAMO';
+                        const textoEtiqueta = props.TEXTOETIQUETA || name;
+                        const popup = `<div class="popup-header">${name}</div>
+                            <div class="popup-row">
+                                                                <span class="popup-value">${textoEtiqueta}</span>
+                            </div>`;
+                        layer.bindPopup(popup);
+                    }
+                });
+
+                overlays['Líneas Subtransmisión'] = lineLayer;
+                if (layerControl) layerControl.addOverlay(lineLayer, 'Líneas Subtransmisión');
+            })
+            .catch(err => console.error('Error cargando LineaSubtransmision.geojson:', err));
+    </script>
+</body>
+</html>
