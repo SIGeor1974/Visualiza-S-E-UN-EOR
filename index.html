@@ -834,7 +834,17 @@
                         onEachFeature: function(feature, layer) {
                             const props = feature.properties || {};
                             const title = props.NOMBRE || props.name || props.nombre || 'Estructura 69KV';
-                            const popup = `<div class="popup-header">${title}</div>`;
+                            const coords = feature.geometry.coordinates;
+                            const estructura = props.estructura || 'N/A';
+                            const popup = `<div class="popup-header">${title}</div>
+                                <div class="popup-row">
+                                    <span class="popup-label">Estructura:</span>
+                                    <span class="popup-value">${estructura}</span>
+                                </div>
+                                <div class="popup-row">
+                                    <span class="popup-label">Coordenadas:</span>
+                                    <span class="popup-value">${coords[0]}, ${coords[1]}</span>
+                                </div>`;
                             layer.bindPopup(popup);
                         }
                     });
